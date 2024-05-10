@@ -9,7 +9,6 @@
         width: 600px;
         height: 600px;
         min-height: 200px;
-        border: 1px black;
         overflow: hidden;
       }
     </style>
@@ -47,13 +46,15 @@
     </button>
     <br />
     <br />
-    <label for="textFlowName">Template ID: </label>
+    <h3>Runtime Flow Widget</h3>
+    <label for="textFlowName">Template ID(Required): </label>
     <input
+      required
       id="textFlowName"
       type="text"
       value="8dfc20ec70f54efcbf3c18cf3e190035"
     />
-    <button onclick="renderRunFlowWidget()">Create from template ID</button>
+    <button onclick="runByTemplateId()">Create from template ID</button>
     <button onclick="reRenderWidget()">Re-render widget</button>
     <br />
     <label for="widgetReadiness">Widget status: </label>
@@ -65,7 +66,7 @@
       var flowAccessToken;
       var applicationConfig = {
         clientID: "", //This is your client ID
-        authority: "https://login.microsoftonline.com/common", 
+        authority: "https://login.microsoftonline.com/common",
         flowScopes: [
           "https://service.flow.microsoft.com//Flows.Read.All https://service.flow.microsoft.com//Flows.Manage.All",
         ],
@@ -153,13 +154,21 @@
         }
       }
 
+      const localStorageKeys = {
+        textAuthToken: "textAuthToken",
+        textFlowName: "textFlowName",
+      };
+
       // Initialize MSFlow SDK
       var sdk = new window.MsFlowSdk({
-        hostName: window.location.origin,
+        hostName: "https://make.preview.powerautomate.com/",
         locale: "en-us",
+        hostId: window.WellKnownHostIds.WIDGETTEST,
       });
 
-      // Create Flows widget
+      var widgetReady = false;
+
+      // Create Flows widget does not need to be loaded when window is loaded.
       function loadFlowsWidget(accessToken) {
         resetWidgetContainer();
         var widget = sdk.renderWidget("flows", {
@@ -193,14 +202,6 @@
         });
       }
 
-      const localStorageKeys = {
-        textAuthToken: "runtimeWidget_textAuthToken",
-        textFlowName: "runtimeWidget_textFlowName",
-      };
-
-      var widgetReady = false;
-      var paneViewOn = false;
-
       window.onload = function () {
         const textFlowName = document.getElementById("textFlowName");
         textFlowName.value = localStorage[localStorageKeys.textFlowName] || "";
@@ -209,41 +210,36 @@
         textAuthToken.value =
           localStorage[localStorageKeys.textAuthToken] || "";
 
-        renderRunFlowWidget();
+        // renderFlowsRuntimeWidget has to be Widget_READY before triggering the runByTemplateId
+        renderFlowsRuntimeWidget();
       };
 
-      // create run flow (flowsRuntime) widget
-      function renderRunFlowWidget() {
-        resetWidgetContainer();
-
-        //update the widget status
+      var widget;
+      function renderFlowsRuntimeWidget() {
         document.getElementById("widgetReadiness").innerText = "Rendering...";
-
-        // document.getElementById("flowsDiv").innerHTML = "";
-
+        document.getElementById("flowsDiv").innerHTML = "";
+        const environmentName = "Default-a0783b62-a438-4df4-b01a-1922ce21ddbe";
         const authTokenOverride =
           document.getElementById("textAuthToken").value;
         localStorage[localStorageKeys.textAuthToken] = authTokenOverride;
 
         const flowName = document.getElementById("textFlowName").value;
-        var widget = sdk.renderWidget("flowsRuntime", {
+        widget = sdk.renderWidget("flowsRuntime", {
           container: "flowsDiv",
-          enableRegionalPortal: true,
           enableOnBehalfOfTokens: true,
+          enableRegionalPortal: true,
           flowName: flowName,
+          environmentId: environmentName,
           widgetStyleSettings: {
             backgroundColor: "white",
-          },
-          flowsSettings: {
-            createFromBlankTemplateId: flowName,
           },
           iframeTitle: "Runtime widget example",
           templatesSettings: {
             useServerSideProvisioning: true,
           },
           runtimeSettings: {
-            enableWidgetCloseOnFlowRun: false,
-            showCloseButton: false,
+            enableWidgetCloseOnFlowRun: true,
+            showCloseButton: true,
           },
         });
         widget.listen(
@@ -269,9 +265,8 @@
           console.log("User clicked on 'Cancel' button");
         });
         widget.listen("RUN_FLOW_DONE_BUTTON_CLICKED", function () {
-          console.log("User clicked on 'Done' button");
+          console.log("User clicked on 'Run Flow' button");
         });
-
         widget.listen("WIDGET_CLOSE", function () {
           console.log("Widget close");
           widget.dispose();
@@ -279,15 +274,15 @@
         widget.listen("FLOW_INSTALL_SUCCEEDED", function (data) {
           console.log("FLOW_INSTALL_SUCCEEDED: ", data);
         });
-        runByTemplateId(widget);
       }
 
       function reRenderWidget() {
-        renderRunFlowWidget();
+        renderFlowsRuntimeWidget();
       }
 
-      function runByTemplateId(widget) {
+      function runByTemplateId() {
         const templateId = document.getElementById("textFlowName").value;
+        localStorage[localStorageKeys.textFlowName] = templateId;
         widget.notify("triggerFlowByTemplate", {
           templateId: templateId,
           designTimeParameters: {},
